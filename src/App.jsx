@@ -418,6 +418,7 @@ const seedSiteContent = () => ({
   heroMainImage: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=1200&q=88",
   heroLeftImage: "https://images.unsplash.com/photo-1625220194771-7ebdea0b70b9?auto=format&fit=crop&w=900&q=88",
   heroRightImage: "https://images.unsplash.com/photo-1568901346375-23c9450c58da?auto=format&fit=crop&w=900&q=88",
+  restaurantNameBackgroundImage: "",
   offerBanners: readStored("kaveri-offer-banners", seedOfferBanners()),
   offerKicker: "KAVERI KITCHEN · FOOD EDITION",
   offerSideLabel: "DAILY SPECIAL",
@@ -759,11 +760,26 @@ export default function HotelSystem() {
   );
 
   const placeOrder = async (order) => {
-    const orderId = order?.id || `ORD-${String(Date.now()).slice(-8)}`;
+    // Public website orders and Admin/POS orders use the SAME Firestore
+    // `orders` collection. Keep the document ID stable so Admin Orders,
+    // POS Website Orders and customer order tracking all reference it.
+    const orderId =
+      order?.id ||
+      `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
     const payload = {
       ...order,
       id: orderId,
+      orderNumber: order?.orderNumber || orderId,
+
+      // Required for Admin Orders + POS Website Orders detection.
+      source: order?.source || "Website",
+      channel: order?.channel || "website",
+
+      // Public website currently operates on Branch 01.
+      // Admin/POS can later move this to a public branch selector.
+      branchId: order?.branchId || "branch-01",
+
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     };
@@ -1606,6 +1622,8 @@ function Landing({
   ];
 
   const heroMainImage = siteContent.heroMainImage || HERO_FALLBACK;
+  const restaurantNameBackgroundImage =
+    String(siteContent.restaurantNameBackgroundImage || "").trim();
 
   const [menuCategory, setMenuCategory] = useState("All");
   const [menuMotionIndex, setMenuMotionIndex] = useState(0);
@@ -1802,7 +1820,20 @@ useEffect(() => {
   return (
     <div className="restaurant-home cinematic-restaurant-page">
       <section className="cinematic-main-hero" id="home-section">
-        <div className="cin-hero-backdrop" aria-label="Restaurant hero photo area" />
+        <div
+          className="cin-hero-backdrop"
+          aria-label="Restaurant hero photo area"
+          style={
+            restaurantNameBackgroundImage
+              ? {
+                  backgroundImage: `linear-gradient(rgba(0,0,0,0.28), rgba(0,0,0,0.28)), url("${restaurantNameBackgroundImage}")`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center center",
+                  backgroundRepeat: "no-repeat"
+                }
+              : undefined
+          }
+        />
 
         <div className="cin-hero-vignette" />
         <div className="cin-hero-grain" />
@@ -3178,6 +3209,10 @@ function OrderPage({
         paymentConfirmed: upiPaid,
         paymentConfirmedAt: upiPaid ? new Date().toISOString() : null,
         status: "New",
+        source: "Website",
+        channel: "website",
+        orderNumber: id,
+        branchId: "branch-01",
         time: "just now"
       });
 
